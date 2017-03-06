@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.JDA;
+import net.dv8tion.jda.core.entities.ChannelType;
 import net.dv8tion.jda.core.entities.Game;
 import net.dv8tion.jda.core.entities.Icon;
 import net.dv8tion.jda.core.entities.Member;
@@ -70,14 +71,18 @@ public class EventListenerAdapter extends ListenerAdapter {
     
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
+        if (event.isFromType(ChannelType.PRIVATE)) 
+            return;
+        
         JDA jda = event.getJDA();
         
         User user = event.getAuthor();
         Message message = event.getMessage();
         MessageChannel channel = event.getChannel();
         Member member = event.getMember();
-        
         String msg = message.getContent();
+        
+        
         serverId = event.getGuild().getId();
         serverName = event.getGuild().getName();
         
@@ -86,7 +91,17 @@ public class EventListenerAdapter extends ListenerAdapter {
             return;
         }
         
-        if(msg.startsWith(".ping")) {
+        if (msg.startsWith(".help")) {
+            if (member.getUser().getPrivateChannel() == null) {
+                member.getUser().openPrivateChannel().queue();
+                member.getUser().getPrivateChannel().sendMessage(GetCommands()).queue();
+            }
+            else {
+                member.getUser().getPrivateChannel().sendMessage(GetCommands()).queue();
+            }
+        }
+        
+        else if(msg.startsWith(".ping")) {
             String ping = "-1";
             
             try {
@@ -102,10 +117,24 @@ public class EventListenerAdapter extends ListenerAdapter {
                         ping = s.substring(s.lastIndexOf(" "));
                 }
             } catch (Exception e) {
-                System.out.println("This is sad ");
+                channel.sendMessage("Something went wrong with your ping.. Try again later!").queue();
             }
             
             channel.sendMessage(String.format("Pong! Your ping is `%s`.", ping)).queue();
+        }
+        
+        else if(msg.startsWith(".flip")) {
+            int number = _rnd.nextInt(1000001);
+            
+            // Just a silly thing in case it hits the last number in the random generation.
+            if (number == 1000000) {
+                channel.sendMessage("The coin landed on its edge! Wow, this is really a rare sight!").queue();
+            } 
+            
+            // If number is divisible by 2, its heads, otherwise its tails.
+            else {
+                channel.sendMessage(number % 2 == 0 ? "Coin landed on heads!" : "Coin landed on tails!").queue();
+            }
         }
         
         else if(msg.startsWith(".uptime")) {
@@ -129,7 +158,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             try {
                 if (msg.trim().length() <= 5) {
                     int number = _rnd.nextInt(6) + 1;
-                    channel.sendMessage(getRollEmbed(jda, member, number)).queue();
+                    channel.sendMessage(String.format("You rolled %d.", number)).queue();
                 } 
                 else {
                     String expression = msg.substring(6).trim().toLowerCase();
@@ -144,7 +173,7 @@ public class EventListenerAdapter extends ListenerAdapter {
                     
                     if (rolls == 1) {
                         int number = _rnd.nextInt(6) + 1;
-                        channel.sendMessage(getRollEmbed(jda, member, number)).queue();
+                        channel.sendMessage(String.format("You rolled %d.", number)).queue();
                         return;
                     }
                     
@@ -313,7 +342,7 @@ public class EventListenerAdapter extends ListenerAdapter {
                 bw.close();
                 fw.close();
                 
-                channel.sendMessage(getSuggestEmbed(jda, member)).queue();
+                channel.sendMessage("Suggestion stored! Thank you for trying to help me improve my bot!").queue();
             } catch (IOException ex) {
                 channel.sendMessage("File not found. Contact admin please.").queue();
             }
@@ -370,7 +399,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
-        else if (msg.startsWith(".flip")) {
+        else if (msg.startsWith(".merch")) {
             try {
                 URL url = new URL("https://rsbuddy.com/exchange/summary.json");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -546,19 +575,6 @@ public class EventListenerAdapter extends ListenerAdapter {
         return eb.build();
     }
 
-    private MessageEmbed getSuggestEmbed(JDA jda, Member member) throws IOException {
-        EmbedBuilder eb = new EmbedBuilder();
-        SelfUser su = jda.getSelfUser();
-        
-        eb.setAuthor(su.getName(), su.getAvatarUrl(), su.getAvatarUrl());
-        eb.setTitle("Suggestion stored!");
-        eb.addField("Thank you!", "Suggestions make me see that people care about the bot and it helps me in further development!", true);
-        eb.setColor(getServerColor());
-        eb.setFooter(String.format("Requested by %s#%s", member.getUser().getName(), member.getUser().getDiscriminator()), member.getUser().getAvatarUrl());
-        
-        return eb.build();
-    }
-
     private MessageEmbed getRollEmbed(JDA jda, Member member, int... number) throws IOException {
         EmbedBuilder eb = new EmbedBuilder();
         SelfUser su = jda.getSelfUser();
@@ -724,5 +740,9 @@ public class EventListenerAdapter extends ListenerAdapter {
             return "Aww, that was close. Better try again!";
         
         return "You didnt win anything, better luck next time..";
+    }
+
+    private String GetCommands() {
+        return "a";
     }
 }
