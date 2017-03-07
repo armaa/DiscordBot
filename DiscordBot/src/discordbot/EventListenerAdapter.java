@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package discordbot;
 
 import java.awt.Color;
@@ -128,7 +123,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             
             // Just a silly thing in case it hits the last number in the random generation.
             if (number == 1000000) {
-                channel.sendMessage("The coin landed on its edge! Wow, this is really a rare sight!").queue();
+                channel.sendMessage("The coin landed on its edge! Wow, this is really a rare sight! Flip it again.").queue();
             } 
             
             // If number is divisible by 2, its heads, otherwise its tails.
@@ -137,6 +132,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Shows the uptime of the bot using smart time formatter
         else if(msg.startsWith(".uptime")) {
             DateTime now = DateTime.now();
             
@@ -209,26 +205,30 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Changes the avatar of the bot
+        // Maybe i should add some layer of protection to this
         else if (msg.startsWith(".avatar")) {
             try {
                 String url = msg.substring(8);
                 InputStream is = new URL(url).openStream();
-                channel.sendMessage(getAvatarEmbed(jda, member, url)).queue();
+                channel.sendMessage("Avatar changed!").queue();
                 jda.getSelfUser().getManager().setAvatar(Icon.from(is)).queue();
             } catch (Exception e) {
                 channel.sendMessage("Please be careful about formatting. The correct format is `.avatar [link]`. Both `http` and `https` links are fine. Make sure it is a picture and that it ends on an appropriate format.").queue();
             }
         }
         
+        // Sets the description of what a bot is currently 'playing'
         else if (msg.startsWith(".desc")) {
-            Presence p = jda.getPresence();
-            String status = msg.substring(6);
-            
-            if (status.toLowerCase().equals("clear")) {
-                p.setGame(null);
+            if (member.getUser().getId().equals("97361468952936448")) {
+                Presence p = jda.getPresence();
+                String status = msg.length() < 6 ? "clear" : msg.substring(6);
+
+                // If the message is equal to "clear", it clears the description
+                p.setGame(status.toLowerCase().equals("clear") == true ? null : Game.of(status));
             }
             else {
-                p.setGame(Game.of(status));
+                channel.sendMessage("You cannot change the description of the bot.").queue();
             }
         }
         
@@ -481,19 +481,6 @@ public class EventListenerAdapter extends ListenerAdapter {
         eb.addField("Info", String.format("Weather: %s | Temperature: %.2f °C (%.2f °F)\nPressure: %d hPa | Humidity: %d %%", weather, tempC, tempF, pressure, humidity), false);
         eb.addField("Wind", String.format("Wind speed: %s | Wind degrees: %s °", windSpeed.toString(), windDeg.toString()), false);
         eb.addField("Clouds", String.format("Cloudy: %d %%", clouds), false);
-        eb.setFooter(String.format("Requested by %s#%s", member.getUser().getName(), member.getUser().getDiscriminator()), member.getUser().getAvatarUrl());
-        
-        return eb.build();
-    }
-
-    private MessageEmbed getAvatarEmbed(JDA jda, Member member, String url) throws IOException {
-        EmbedBuilder eb = new EmbedBuilder();
-        SelfUser su = jda.getSelfUser();
-        
-        eb.setAuthor(su.getName(), su.getAvatarUrl(), su.getAvatarUrl());
-        eb.setTitle("Image changed!");
-        eb.setColor(getServerColor());
-        eb.setThumbnail(url);
         eb.setFooter(String.format("Requested by %s#%s", member.getUser().getName(), member.getUser().getDiscriminator()), member.getUser().getAvatarUrl());
         
         return eb.build();
