@@ -81,9 +81,17 @@ public class EventListenerAdapter extends ListenerAdapter {
         serverId = event.getGuild().getId();
         serverName = event.getGuild().getName();
         
-        if (messageIsBanned(jda, msg))  {
+        if (messageIsBanned(msg))  {
             message.deleteMessage().queue();
             return;
+        }
+        
+        if(msg.toLowerCase().contains("buck") || msg.contains("$")) {
+            try {
+                channel.sendFile(new File("files/buck.png"), null).queue();
+            } catch (IOException ex) {
+                Logger.getLogger(EventListenerAdapter.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
         
         if (msg.startsWith(".help")) {
@@ -253,7 +261,20 @@ public class EventListenerAdapter extends ListenerAdapter {
             } catch (Exception e) {
                 channel.sendMessage("Wrong format. The format has to be `.weather [name of city] OR [name of country]`.").queue();
             }
-            
+        }
+        
+        else if (msg.startsWith(".choose")) {
+            if (msg.contains(",")) {
+                String[] splitMessage = msg.split(",");
+                String randomWord = splitMessage[_rnd.nextInt(splitMessage.length)].trim();
+                channel.sendMessage(String.format(":crystal_ball: I choose %s!", randomWord)).queue();
+            } else if (msg.contains("|")) {
+                String[] splitMessage = msg.split("\\|");
+                String randomWord = splitMessage[_rnd.nextInt(splitMessage.length)].trim();
+                channel.sendMessage(String.format(":crystal_ball: I choose %s!", randomWord)).queue();
+            } else {
+                channel.sendMessage("Used the wrong separator. Decisions should be seperated with a `| (pipe)` or with a `, (comma)`.").queue();
+            }
         }
         
         else if (msg.startsWith(".color")) {
@@ -651,7 +672,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         return eb.build();
     }
 
-    private boolean messageIsBanned(JDA jda, String message) {
+    private boolean messageIsBanned(String message) {
         try {
             File f = new File("files/banned.txt");
             Scanner sc = new Scanner(f);
@@ -729,6 +750,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         return "You didnt win anything, better luck next time..";
     }
 
+    // Roll, alch, merch, flip, weather, cat, color, uptime
     private String GetCommands() {
         return "a";
     }
