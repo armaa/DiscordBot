@@ -77,11 +77,10 @@ public class EventListenerAdapter extends ListenerAdapter {
         Member member = event.getMember();
         String msg = message.getContent();
         
-        
         serverId = event.getGuild().getId();
         serverName = event.getGuild().getName();
         
-        if (messageIsBanned(msg))  {
+        if (messageIsBanned(msg, channel))  {
             message.deleteMessage().queue();
             return;
         }
@@ -94,6 +93,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Sends the user a private message with list of all commands
         if (msg.startsWith(".help")) {
             if (member.getUser().getPrivateChannel() == null) {
                 member.getUser().openPrivateChannel().queue();
@@ -126,6 +126,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             channel.sendMessage(String.format("Pong! Your ping is `%s`.", ping)).queue();
         }
         
+        // Simulated a coin flip
         else if(msg.startsWith(".flip")) {
             int number = _rnd.nextInt(1000001);
             
@@ -158,6 +159,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             channel.sendMessage(pf.print(p)).queue();
         }
         
+        // Simulates a dice roll with n sides and throws it m times
         else if(msg.startsWith(".roll")) {
             try {
                 if (msg.trim().length() <= 5) {
@@ -196,6 +198,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Gets a random cat fact
         else if (msg.startsWith(".cats")) {
             try {
                 URL url = new URL("https://catfacts-api.appspot.com/api/facts");
@@ -240,6 +243,8 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Gets the current weather for the received city/coutnry
+        // Should maybe reformat the way it parses JSON and the whole function together
         else if (msg.startsWith(".weather")) {
             try {
                 String location = msg.substring(9).trim();
@@ -263,6 +268,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Makes the bot to choose instead of a user in case they are in a dilema
         else if (msg.startsWith(".choose")) {
             if (msg.contains(",")) {
                 String[] splitMessage = msg.split(",");
@@ -277,6 +283,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Sets the color of the embed's bar for the server
         else if (msg.startsWith(".color")) {
             try {
                 String rgbColors = msg.substring(7).trim();
@@ -314,10 +321,21 @@ public class EventListenerAdapter extends ListenerAdapter {
                         b = 255;
                         break;
                     default:
-                        r = Integer.parseInt(rgbColors.split("\\|")[0]);
-                        g = Integer.parseInt(rgbColors.split("\\|")[1]);
-                        b = Integer.parseInt(rgbColors.split("\\|")[2]);
-                        break;
+                        if(rgbColors.contains("|")) {
+                            r = Integer.parseInt(rgbColors.split("\\|")[0]);
+                            g = Integer.parseInt(rgbColors.split("\\|")[1]);
+                            b = Integer.parseInt(rgbColors.split("\\|")[2]);
+                            break;
+                        }
+                        else if (rgbColors.contains(",")) {
+                            r = Integer.parseInt(rgbColors.split(",")[0]);
+                            g = Integer.parseInt(rgbColors.split(",")[1]);
+                            b = Integer.parseInt(rgbColors.split(",")[2]);
+                            break;
+                        }
+                        
+                        channel.sendMessage("The format was incorrect. The format should be `.color r|g|b`.").queue();
+                        return;
                 }
                 
                 Scanner sc = new Scanner(new File("files/servercolors.txt"));
@@ -564,7 +582,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             
             file.close();
         } catch (Exception e) {
-            
+            System.out.println(e.getMessage());
         }
         
         return Color.YELLOW;
@@ -672,7 +690,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         return eb.build();
     }
 
-    private boolean messageIsBanned(String message) {
+    private boolean messageIsBanned(String message, MessageChannel channel) {
         try {
             File f = new File("files/banned.txt");
             Scanner sc = new Scanner(f);
@@ -682,9 +700,9 @@ public class EventListenerAdapter extends ListenerAdapter {
                 }
             }
         } catch (FileNotFoundException ex) {
-            Logger.getLogger(EventListenerAdapter.class.getName()).log(Level.SEVERE, null, ex);
+            channel.sendMessage("File not found. Please contact admin!").queue();
         } catch (Exception e) {
-            
+            channel.sendMessage("Something went wrong. Contact admin please.").queue();
         }
         
         return false;
@@ -750,8 +768,21 @@ public class EventListenerAdapter extends ListenerAdapter {
         return "You didnt win anything, better luck next time..";
     }
 
-    // Roll, alch, merch, flip, weather, cat, color, uptime
+    // Roll, flip, weather, cats, color, uptime
     private String GetCommands() {
-        return "a";
+        StringBuilder sb = new StringBuilder();
+        String newLine = System.lineSeparator();
+        
+        sb.append("```");
+        sb.append(String.format(".roll - Rolls a dice for you!%s\tFormat - .roll [how many rolls]d[how many sides]%s", newLine, newLine));
+        sb.append(".flip - Flips a coin for you!").append(newLine);
+        sb.append(".cats - Shows you a random cat fact (which you probably didnt know about)!").append(newLine);
+        sb.append(String.format(".color - Sets a color for the message embed!%s\tFormat - .color r|g|b%s", newLine, newLine));
+        sb.append(".uptime - Gives you the uptime of the bot!").append(newLine);
+        sb.append(String.format(".weather - Gives you the current weather statistics!%s\tFormat - .weather [name of city] OR [name of country]%s", newLine, newLine));
+        sb.append(String.format(".choose - Makes a decision for you!%s\tFormat - .choose a|b|c or a, b, c%s", newLine, newLine));
+        sb.append("```");
+        
+        return sb.toString();
     }
 }
