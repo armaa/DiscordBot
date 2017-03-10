@@ -35,6 +35,7 @@ import net.dv8tion.jda.core.entities.MessageEmbed;
 import net.dv8tion.jda.core.entities.SelfUser;
 import net.dv8tion.jda.core.entities.User;
 import net.dv8tion.jda.core.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.core.exceptions.PermissionException;
 import net.dv8tion.jda.core.hooks.ListenerAdapter;
 import net.dv8tion.jda.core.managers.Presence;
 import org.joda.time.DateTime;
@@ -59,6 +60,7 @@ public class EventListenerAdapter extends ListenerAdapter {
     private final static String[] SLOTS_ICONS = { ":cherries:", ":lemon:", ":grapes:", ":seven:", ":tangerine:", ":watermelon:", ":banana:", ":pear:", ":strawberry:" };
     private final static String[] SLOTS_MESSAGE = { "rolled the slots!", "is trying their luck!", "pulled the handle!" };
     private final static String PASTEBIN_API_KEY = "b30d5c6673c98fb0c581dd99de644e44";
+    private final static String ADMIN_ID = "97361468952936448";
 
     EventListenerAdapter(DateTime uptime) {
         this.uptime = uptime;
@@ -231,7 +233,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         
         // Sets the description of what a bot is currently 'playing'
         else if (msg.startsWith(".desc")) {
-            if (member.getUser().getId().equals("97361468952936448")) {
+            if (member.getUser().getId().equals(ADMIN_ID)) {
                 Presence p = jda.getPresence();
                 String status = msg.length() < 6 ? "clear" : msg.substring(6);
 
@@ -334,7 +336,7 @@ public class EventListenerAdapter extends ListenerAdapter {
                             break;
                         }
                         
-                        channel.sendMessage("The format was incorrect. The format should be `.color r|g|b`.").queue();
+                        channel.sendMessage("The format was incorrect. The format should be `.color r|g|b` or `.color r, g, b`.").queue();
                         return;
                 }
                 
@@ -368,6 +370,41 @@ public class EventListenerAdapter extends ListenerAdapter {
             } catch (Exception e) {
                 channel.sendMessage("The format was incorrect. The format should be `.color r|g|b`.").queue();
             }
+        }
+        
+        // Pins a message to a channel
+        else if (msg.startsWith(".pin")) {
+            try {
+                String id = msg.substring(5);
+                System.out.println(id);
+                channel.pinMessageById(id).queue(null, i -> channel.sendMessage("Message doesnt exist. Check in which channel you are right now.").queue());
+            } catch (PermissionException e) {
+                channel.sendMessage("Required Permission.MESSAGE_READ and Permission.MESSAGE_MANAGE to pin a message.").queue();
+            } catch (Exception e) {
+                channel.sendMessage("No message id provided.").queue();
+            }
+        }
+        
+        // Changes the name of the bot
+        else if (msg.startsWith(".name")) {
+            if (user.getId().equals(ADMIN_ID)) {
+                try {
+                    String name = msg.substring(6);
+                    jda.getSelfUser().getManager().setName(name).queue();
+                } catch (Exception e) {
+                    channel.sendMessage("Name cannot be empty.").queue();
+                }
+            } else {
+                channel.sendMessage("You cannot change the name of the bot.").queue();
+            }
+        }
+        
+        // Changes the topic of the channel
+        else if (msg.startsWith(".topic")) {
+            
+            // Requires TextChannel here instead of MessageChannel because .getManager()
+            // isnt avaiable on MessageChannel object and im unsure how to get it in any other way
+            event.getTextChannel().getManager().setTopic(msg.length() <= 7 ? "" : msg.substring(7)).queue();
         }
         
         else if (msg.startsWith(".suggestion")) {
@@ -482,10 +519,11 @@ public class EventListenerAdapter extends ListenerAdapter {
         
         else if (msg.startsWith(".slots")) {
             channel.sendMessage(String.format("%s %s", member.getEffectiveName(), SLOTS_MESSAGE[_rnd.nextInt(SLOTS_MESSAGE.length)])).queue();
+            int size = SLOTS_ICONS.length;
             
-            String firstFruit = SLOTS_ICONS[_rnd.nextInt(SLOTS_ICONS.length)];
-            String secondFruit = SLOTS_ICONS[_rnd.nextInt(SLOTS_ICONS.length)];
-            String thirdFruit = SLOTS_ICONS[_rnd.nextInt(SLOTS_ICONS.length)];
+            String firstFruit = SLOTS_ICONS[_rnd.nextInt(size)];
+            String secondFruit = SLOTS_ICONS[_rnd.nextInt(size)];
+            String thirdFruit = SLOTS_ICONS[_rnd.nextInt(size)];
             
             channel.sendMessage(String.format("[ %s | %s | %s ]", firstFruit, secondFruit, thirdFruit)).queue();
             channel.sendMessage(didYouWin(firstFruit, secondFruit, thirdFruit)).queue();
@@ -768,12 +806,12 @@ public class EventListenerAdapter extends ListenerAdapter {
         return "You didnt win anything, better luck next time..";
     }
 
-    // Roll, flip, weather, cats, color, uptime
+    // Roll, flip, weather, cats, color, uptime, topic, pin
     private String GetCommands() {
         StringBuilder sb = new StringBuilder();
         String newLine = System.lineSeparator();
         
-        sb.append("```");
+        sb.append("```css").append(newLine);
         sb.append(String.format(".roll - Rolls a dice for you!%s\tFormat - .roll [how many rolls]d[how many sides]%s", newLine, newLine));
         sb.append(".flip - Flips a coin for you!").append(newLine);
         sb.append(".cats - Shows you a random cat fact (which you probably didnt know about)!").append(newLine);
@@ -781,6 +819,8 @@ public class EventListenerAdapter extends ListenerAdapter {
         sb.append(".uptime - Gives you the uptime of the bot!").append(newLine);
         sb.append(String.format(".weather - Gives you the current weather statistics!%s\tFormat - .weather [name of city] OR [name of country]%s", newLine, newLine));
         sb.append(String.format(".choose - Makes a decision for you!%s\tFormat - .choose a|b|c or a, b, c%s", newLine, newLine));
+        sb.append(".topic - Changes the topic of the channel!").append(newLine);
+        sb.append(".pin - Pins a message by message id!").append(newLine);
         sb.append("```");
         
         return sb.toString();
