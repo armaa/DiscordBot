@@ -25,6 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.JDA;
+import net.dv8tion.jda.core.Permission;
 import net.dv8tion.jda.core.entities.ChannelType;
 import net.dv8tion.jda.core.entities.Game;
 import net.dv8tion.jda.core.entities.Icon;
@@ -37,6 +38,7 @@ import net.dv8tion.jda.core.entities.User;
 import net.dv8tion.jda.core.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.core.exceptions.PermissionException;
 import net.dv8tion.jda.core.hooks.ListenerAdapter;
+import net.dv8tion.jda.core.managers.GuildController;
 import net.dv8tion.jda.core.managers.Presence;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
@@ -90,19 +92,21 @@ public class EventListenerAdapter extends ListenerAdapter {
         if(msg.toLowerCase().contains("buck") || msg.contains("$")) {
             try {
                 channel.sendFile(new File("files/buck.png"), null).queue();
-            } catch (IOException ex) {
-                Logger.getLogger(EventListenerAdapter.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (IOException e) {
+                channel.sendMessage("Something went wrong..").queue();
             }
         }
         
         // Sends the user a private message with list of all commands
         if (msg.startsWith(".help")) {
-            if (member.getUser().getPrivateChannel() == null) {
-                member.getUser().openPrivateChannel().queue();
-                member.getUser().getPrivateChannel().sendMessage(GetCommands()).queue();
-            }
-            else {
-                member.getUser().getPrivateChannel().sendMessage(GetCommands()).queue();
+            user.openPrivateChannel().queue(i -> i.getUser().getPrivateChannel().sendMessage(getListOfCommands()).queue());
+        }
+        
+        else if (msg.startsWith(".ready")) {
+            try {
+                channel.sendFile(new File("files/READY.jpg"), null).queue();
+            } catch (IOException e) {
+                channel.sendMessage("Something went wrong..").queue();
             }
         }
         
@@ -212,9 +216,8 @@ public class EventListenerAdapter extends ListenerAdapter {
                 JSONObject json = new JSONObject(br.readLine());
                 String catfact = json.getJSONArray("facts").getString(0);
                 channel.sendMessage(getCatsEmbed(jda, member, catfact)).queue();
-            }
-            catch (Exception e) {
-                channel.sendMessage(e.getMessage()).queue();
+            } catch (Exception e) {
+                channel.sendMessage("Something is wrong with the API. Contact admin please.").queue();
             }
         }
         
@@ -405,6 +408,50 @@ public class EventListenerAdapter extends ListenerAdapter {
             // Requires TextChannel here instead of MessageChannel because .getManager()
             // isnt avaiable on MessageChannel object and im unsure how to get it in any other way
             event.getTextChannel().getManager().setTopic(msg.length() <= 7 ? "" : msg.substring(7)).queue();
+        }
+        
+        // Kicks the user from the server
+        else if (msg.startsWith(".kick")) {
+            
+            // Try - catch checks if the bot has enough permission to kick someone
+            // If - else checks if the user who called the command has enough permission to kick someone
+            try {
+                if (member.getPermissions().contains(Permission.KICK_MEMBERS) || member.getPermissions().contains(Permission.ADMINISTRATOR)) {
+                    String id = message.getRawContent().replaceAll("\\D+", "");
+                    GuildController gc = new GuildController(event.getGuild());
+                    gc.kick(id).queue(i -> channel.sendMessage("User has been kicked from the server.").queue());
+                } else {
+                    channel.sendMessage("You dont have enough permission to issue that command.").queue();
+                }
+            } catch (PermissionException e) {
+                channel.sendMessage("Requires Permission.KICK_MEMBERS to kick the user or you cannot kick the user because they are higher in hierarchy position than you.").queue();
+            }
+        }
+        
+        // Bans the user from the server
+        else if (msg.startsWith(".ban")) {
+            
+            // Try - catch checks if the bot has enough permission to ban someone
+            // If - else checks if the user who called the command has enough permission to ban someone
+            try {
+                if (member.getPermissions().contains(Permission.BAN_MEMBERS) || member.getPermissions().contains(Permission.ADMINISTRATOR)) {
+                    String id = message.getRawContent().replaceAll("\\D+", "");
+                    GuildController gc = new GuildController(event.getGuild());
+                    gc.ban(id, 0).queue(i -> channel.sendMessage("User has been banned from the server.").queue());
+                } else {
+                    channel.sendMessage("You dont have enough permission to issue that command.").queue();
+                }
+            } catch (PermissionException e) {
+                channel.sendMessage("Requires Permission.BAN_MEMBERS to ban the user or you cannot ban the user because they are higher in hierarchy position than you.").queue();
+            }
+        }
+        
+        // Gets a list of all the users on the server, how long have they been member for
+        // Their nickname, their discord tag and their user id
+        else if (msg.startsWith(".stats")) {
+            System.out.println(event.getGuild().getId());
+            List<Member> listOfMembers = event.getGuild().getMembers();
+            listOfMembers.forEach(i -> System.out.println(i.getUser().getId() + " " + i.getUser().getName() + " " + i.getEffectiveName() + " " + i.getNickname()));
         }
         
         else if (msg.startsWith(".suggestion")) {
@@ -806,8 +853,9 @@ public class EventListenerAdapter extends ListenerAdapter {
         return "You didnt win anything, better luck next time..";
     }
 
-    // Roll, flip, weather, cats, color, uptime, topic, pin
-    private String GetCommands() {
+    // Roll, flip, weather, cats, color, uptime, topic, pin, kick, ban
+    // Stats
+    private String getListOfCommands() {
         StringBuilder sb = new StringBuilder();
         String newLine = System.lineSeparator();
         
@@ -819,8 +867,10 @@ public class EventListenerAdapter extends ListenerAdapter {
         sb.append(".uptime - Gives you the uptime of the bot!").append(newLine);
         sb.append(String.format(".weather - Gives you the current weather statistics!%s\tFormat - .weather [name of city] OR [name of country]%s", newLine, newLine));
         sb.append(String.format(".choose - Makes a decision for you!%s\tFormat - .choose a|b|c or a, b, c%s", newLine, newLine));
-        sb.append(".topic - Changes the topic of the channel!").append(newLine);
+        sb.append(".topic - Changes the topic of the channel! Leave it empty to clear the topic!").append(newLine);
         sb.append(".pin - Pins a message by message id!").append(newLine);
+        sb.append(String.format(".kick - Kicks an user from the server!%s\tFormat - .kick [@mention] or [user id]%s", newLine, newLine));
+        sb.append(String.format(".ban - Bans an user from the server!%s\tFormat - .ban [@mention] or [user id]%s", newLine, newLine));
         sb.append("```");
         
         return sb.toString();
