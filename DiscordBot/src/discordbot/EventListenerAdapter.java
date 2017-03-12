@@ -23,6 +23,7 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.JDA;
 import net.dv8tion.jda.core.Permission;
@@ -327,15 +328,15 @@ public class EventListenerAdapter extends ListenerAdapter {
                         break;
                     default:
                         if(rgbColors.contains("|")) {
-                            r = Integer.parseInt(rgbColors.split("\\|")[0]);
-                            g = Integer.parseInt(rgbColors.split("\\|")[1]);
-                            b = Integer.parseInt(rgbColors.split("\\|")[2]);
+                            r = Integer.parseInt(rgbColors.split("\\|")[0].trim());
+                            g = Integer.parseInt(rgbColors.split("\\|")[1].trim());
+                            b = Integer.parseInt(rgbColors.split("\\|")[2].trim());
                             break;
                         }
                         else if (rgbColors.contains(",")) {
-                            r = Integer.parseInt(rgbColors.split(",")[0]);
-                            g = Integer.parseInt(rgbColors.split(",")[1]);
-                            b = Integer.parseInt(rgbColors.split(",")[2]);
+                            r = Integer.parseInt(rgbColors.split(",")[0].trim());
+                            g = Integer.parseInt(rgbColors.split(",")[1].trim());
+                            b = Integer.parseInt(rgbColors.split(",")[2].trim());
                             break;
                         }
                         
@@ -371,7 +372,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             } catch (IOException ex) {
                 channel.sendMessage("File not found. Contact admin please.").queue();
             } catch (Exception e) {
-                channel.sendMessage("The format was incorrect. The format should be `.color r|g|b`.").queue();
+                channel.sendMessage("The format was incorrect. The format should be `.color r|g|b` or `.color r, g, b`.").queue();
             }
         }
         
@@ -382,7 +383,7 @@ public class EventListenerAdapter extends ListenerAdapter {
                 System.out.println(id);
                 channel.pinMessageById(id).queue(null, i -> channel.sendMessage("Message doesnt exist. Check in which channel you are right now.").queue());
             } catch (PermissionException e) {
-                channel.sendMessage("Required Permission.MESSAGE_READ and Permission.MESSAGE_MANAGE to pin a message.").queue();
+                channel.sendMessage("Requires Permission.MESSAGE_READ and Permission.MESSAGE_MANAGE to pin a message.").queue();
             } catch (Exception e) {
                 channel.sendMessage("No message id provided.").queue();
             }
@@ -407,7 +408,12 @@ public class EventListenerAdapter extends ListenerAdapter {
             
             // Requires TextChannel here instead of MessageChannel because .getManager()
             // isnt avaiable on MessageChannel object and im unsure how to get it in any other way
-            event.getTextChannel().getManager().setTopic(msg.length() <= 7 ? "" : msg.substring(7)).queue();
+            try {
+                event.getTextChannel().getManager().setTopic(msg.length() <= 7 ? "" : msg.substring(7)).queue();
+            } catch (PermissionException e) {
+                channel.sendMessage("Requires Permission.MANAGE_CHANNEL to change the topic of the channel.").queue();
+            }
+            
         }
         
         // Kicks the user from the server
@@ -448,10 +454,27 @@ public class EventListenerAdapter extends ListenerAdapter {
         
         // Gets a list of all the users on the server, how long have they been member for
         // Their nickname, their discord tag and their user id
-        else if (msg.startsWith(".stats")) {
-            System.out.println(event.getGuild().getId());
+        else if (msg.startsWith(".members")) {
             List<Member> listOfMembers = event.getGuild().getMembers();
-            listOfMembers.forEach(i -> System.out.println(i.getUser().getId() + " " + i.getUser().getName() + " " + i.getEffectiveName() + " " + i.getNickname()));
+            StringBuilder sb = new StringBuilder();
+            String newLine = System.lineSeparator();
+            String header = String.format("```cs%sFormat: User id | Date of joining | Nickname | Discord tag%s", newLine, newLine);
+            List<String> listOfMembersFormated = new ArrayList<>();
+            listOfMembersFormated = listOfMembers
+                    .stream()
+                    .map(i -> String.join(" | ", i.getUser().getId(), i.getJoinDate().toLocalDate().toString(), i.getEffectiveName(), i.getUser().getName() + "#" + i.getUser().getDiscriminator()))
+                    .collect(Collectors.toList());
+            listOfMembersFormated.forEach(i -> sb.append(i).append(newLine));
+            
+            // Fits the message into the max count of 2000 characters for private message
+            while (sb.length() > 2) {
+                String memberInfo = sb.length() > 2000 ? sb.substring(0, 1928) : sb.substring(0, sb.lastIndexOf(newLine) + 2);
+                int index = memberInfo.lastIndexOf(newLine) + 2;
+                memberInfo = memberInfo.substring(0, index);
+                String messageToSend = String.format("%s%s```", header, memberInfo);
+                user.openPrivateChannel().queue(i -> i.getUser().getPrivateChannel().sendMessage(messageToSend).queue());
+                sb.delete(0, sb.length() > 2000 ? index : sb.lastIndexOf(newLine) + 2);
+            }
         }
         
         else if (msg.startsWith(".suggestion")) {
@@ -854,7 +877,8 @@ public class EventListenerAdapter extends ListenerAdapter {
     }
 
     // Roll, flip, weather, cats, color, uptime, topic, pin, kick, ban
-    // Stats
+    // Stats, slots, members
+    // Should order these alphabetically or ones without format first then the ones with format
     private String getListOfCommands() {
         StringBuilder sb = new StringBuilder();
         String newLine = System.lineSeparator();
@@ -863,12 +887,14 @@ public class EventListenerAdapter extends ListenerAdapter {
         sb.append(String.format(".roll - Rolls a dice for you!%s\tFormat - .roll [how many rolls]d[how many sides]%s", newLine, newLine));
         sb.append(".flip - Flips a coin for you!").append(newLine);
         sb.append(".cats - Shows you a random cat fact (which you probably didnt know about)!").append(newLine);
-        sb.append(String.format(".color - Sets a color for the message embed!%s\tFormat - .color r|g|b%s", newLine, newLine));
+        sb.append(String.format(".color - Sets a color for the message embed!%s\tFormat - .color r|g|b%s OR r, g, b", newLine, newLine));
         sb.append(".uptime - Gives you the uptime of the bot!").append(newLine);
         sb.append(String.format(".weather - Gives you the current weather statistics!%s\tFormat - .weather [name of city] OR [name of country]%s", newLine, newLine));
         sb.append(String.format(".choose - Makes a decision for you!%s\tFormat - .choose a|b|c or a, b, c%s", newLine, newLine));
+        sb.append(".slots - Rolls a slot, just like a real slot machine!").append(newLine);
         sb.append(".topic - Changes the topic of the channel! Leave it empty to clear the topic!").append(newLine);
         sb.append(".pin - Pins a message by message id!").append(newLine);
+        sb.append(".members - Shows stats of all members in the server!").append(newLine);
         sb.append(String.format(".kick - Kicks an user from the server!%s\tFormat - .kick [@mention] or [user id]%s", newLine, newLine));
         sb.append(String.format(".ban - Bans an user from the server!%s\tFormat - .ban [@mention] or [user id]%s", newLine, newLine));
         sb.append("```");
