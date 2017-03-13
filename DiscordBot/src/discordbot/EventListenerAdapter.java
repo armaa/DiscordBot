@@ -155,10 +155,10 @@ public class EventListenerAdapter extends ListenerAdapter {
             Period p = new Period(uptime, now);
             PeriodFormatterBuilder format = new PeriodFormatterBuilder()
                     .appendYears().appendSuffix(" year ", " years ")
-                    .appendMonths().appendSuffix(" month ", "months ")
-                    .appendWeeks().appendSuffix(" week ", "weeks ")
-                    .appendDays().appendSuffix(" day ", "days ")
-                    .appendHours().appendSuffix(" hour ", "hours ")
+                    .appendMonths().appendSuffix(" month ", " months ")
+                    .appendWeeks().appendSuffix(" week ", " weeks ")
+                    .appendDays().appendSuffix(" day ", " days ")
+                    .appendHours().appendSuffix(" hour ", " hours ")
                     .appendMinutes().appendSuffix(" minute ", " minutes ")
                     .appendSeconds().appendSuffix(" second ", " seconds ");
             PeriodFormatter pf = format.toFormatter();
@@ -254,6 +254,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         else if (msg.startsWith(".weather")) {
             try {
                 String location = msg.substring(9).trim();
+                location = location.contains(" ") ? location.replace(" ", "%20") : location;
                 URL url = new URL("http://api.openweathermap.org/data/2.5/weather?q=" + location + "&appid=e02836c415387e8045d4be9dd39aef54");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -474,6 +475,34 @@ public class EventListenerAdapter extends ListenerAdapter {
                 String messageToSend = String.format("%s%s```", header, memberInfo);
                 user.openPrivateChannel().queue(i -> i.getUser().getPrivateChannel().sendMessage(messageToSend).queue());
                 sb.delete(0, sb.length() > 2000 ? index : sb.lastIndexOf(newLine) + 2);
+            }
+        }
+        
+        // Gets a random description for the given word
+        else if (msg.startsWith(".urban")) {
+            try {
+                String word = msg.substring(7).trim();
+                word = word.contains(" ") ? word.replace(" ", "%20") : word;
+                
+                URL url = new URL("http://api.urbandictionary.com/v0/define?term=" + word);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+                JSONObject json = new JSONObject(br.readLine());
+                
+                channel.sendMessage(getUrbanEmbed(json, jda, member)).queue();
+            } catch (MalformedURLException ex) {
+                channel.sendMessage("API is down. Contact admin please.").queue();
+            } catch (IOException ex) {
+                channel.sendMessage("API is down. Contact admin please.").queue();
+            } catch (JSONException ex) {
+                channel.sendMessage("Something is wrong with the API. Contact admin.").queue();
+            } catch (IllegalArgumentException ex) {
+                channel.sendMessage("No results found. Try another word.").queue();
+            } catch (Exception e) {
+                channel.sendMessage("Something went wrong.").queue();
             }
         }
         
@@ -877,28 +906,55 @@ public class EventListenerAdapter extends ListenerAdapter {
     }
 
     // Roll, flip, weather, cats, color, uptime, topic, pin, kick, ban
-    // Stats, slots, members
+    // Slots, members, urban, choose
     // Should order these alphabetically or ones without format first then the ones with format
     private String getListOfCommands() {
         StringBuilder sb = new StringBuilder();
         String newLine = System.lineSeparator();
         
         sb.append("```css").append(newLine);
-        sb.append(String.format(".roll - Rolls a dice for you!%s\tFormat - .roll [how many rolls]d[how many sides]%s", newLine, newLine));
+        sb.append(".roll - Rolls a dice for you!").append(newLine).append("\tFormat - .roll [how many rolls]d[how many sides]").append(newLine);
         sb.append(".flip - Flips a coin for you!").append(newLine);
         sb.append(".cats - Shows you a random cat fact (which you probably didnt know about)!").append(newLine);
-        sb.append(String.format(".color - Sets a color for the message embed!%s\tFormat - .color r|g|b%s OR r, g, b", newLine, newLine));
+        sb.append(".color - Sets a color for the message embed!").append(newLine).append("\tFormat - .color r|g|b OR r, g, b").append(newLine);
         sb.append(".uptime - Gives you the uptime of the bot!").append(newLine);
-        sb.append(String.format(".weather - Gives you the current weather statistics!%s\tFormat - .weather [name of city] OR [name of country]%s", newLine, newLine));
-        sb.append(String.format(".choose - Makes a decision for you!%s\tFormat - .choose a|b|c or a, b, c%s", newLine, newLine));
+        sb.append(".weather - Gives you the current weather statistics!").append(newLine).append("\tFormat - .weather [name of city] OR [name of country]").append(newLine);
+        sb.append(".choose - Makes a decision for you!").append(newLine).append("\tFormat - .choose a|b|c or a, b, c").append(newLine);
         sb.append(".slots - Rolls a slot, just like a real slot machine!").append(newLine);
         sb.append(".topic - Changes the topic of the channel! Leave it empty to clear the topic!").append(newLine);
         sb.append(".pin - Pins a message by message id!").append(newLine);
         sb.append(".members - Shows stats of all members in the server!").append(newLine);
-        sb.append(String.format(".kick - Kicks an user from the server!%s\tFormat - .kick [@mention] or [user id]%s", newLine, newLine));
-        sb.append(String.format(".ban - Bans an user from the server!%s\tFormat - .ban [@mention] or [user id]%s", newLine, newLine));
+        sb.append(".urban - Gets a random definition and example for a given word!").append(newLine);
+        sb.append(".kick - Kicks an user from the server!").append(newLine).append("\tFormat - .kick [@mention] or [user id])").append(newLine);
+        sb.append(".ban - Bans an user from the server!").append(newLine).append("\tFormat - .ban [@mention] or [user id])").append(newLine);
         sb.append("```");
         
         return sb.toString();
+    }
+
+    private MessageEmbed getUrbanEmbed(JSONObject json, JDA jda, Member member) throws IOException, IllegalArgumentException {
+        EmbedBuilder eb = new EmbedBuilder();
+        
+        int lengthOfListArray = json.getJSONArray("list").length();
+        int postToGet = _rnd.nextInt(lengthOfListArray);
+        String author = json.getJSONArray("list").getJSONObject(postToGet).has("author") ? json.getJSONArray("list").getJSONObject(postToGet).getString("author") : "null";
+        String word = json.getJSONArray("list").getJSONObject(postToGet).has("word") ? json.getJSONArray("list").getJSONObject(postToGet).getString("word") : "null";
+        String definition = json.getJSONArray("list").getJSONObject(postToGet).has("definition") ? json.getJSONArray("list").getJSONObject(postToGet).getString("definition") : "No definition for that word. Try another word.";
+        String example = json.getJSONArray("list").getJSONObject(postToGet).has("example") ? json.getJSONArray("list").getJSONObject(postToGet).getString("example") : "No example for that word. Try another word.";
+        int thumbsUp = json.getJSONArray("list").getJSONObject(postToGet).has("thumbs_up") ? json.getJSONArray("list").getJSONObject(postToGet).getInt("thumbs_up") : -1;
+        int thumbsDown = json.getJSONArray("list").getJSONObject(postToGet).has("thumbs_down") ? json.getJSONArray("list").getJSONObject(postToGet).getInt("thumbs_down") : -1;
+        String link = json.getJSONArray("list").getJSONObject(postToGet).has("permalink") ? json.getJSONArray("list").getJSONObject(postToGet).getString("permalink") : "null";
+        
+        SelfUser su = jda.getSelfUser();
+        
+        eb.setColor(getServerColor());
+        eb.setAuthor(su.getName(), su.getAvatarUrl(), su.getAvatarUrl());
+        eb.setDescription(String.format("%s by %s", word, author));
+        eb.addField("Definition", definition.length() > 350 ? definition.substring(0, 350).concat("[...]") : definition, false);
+        eb.addField("Example", example.length() > 350 ? example.substring(0, 350).concat("[...]") : example, false);
+        eb.addField(String.format("More definitions of this word: %s", link), String.format(":thumbsup: %d | :thumbsdown: %d", thumbsUp, thumbsDown), false);
+        eb.setFooter(String.format("Requested by %s#%s", member.getUser().getName(), member.getUser().getDiscriminator()), member.getUser().getAvatarUrl());
+        
+        return eb.build();
     }
 }
