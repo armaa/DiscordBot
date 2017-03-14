@@ -506,6 +506,17 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        else if (msg.startsWith(".google")) {
+            try {
+                String query = msg.substring(8).trim();
+                query = query.contains(" ") ? query.replace(" ", "+") : query;
+                String link = String.format("https://lmgtfy.com/?q=%s", query);
+                channel.sendMessage(link).queue();
+            } catch (Exception e) {
+                channel.sendMessage("Please provide a word to google for you.").queue();
+            }
+        }
+        
         else if (msg.startsWith(".suggestion")) {
             try {
                 String suggestion = msg.substring(12).trim();
@@ -906,7 +917,7 @@ public class EventListenerAdapter extends ListenerAdapter {
     }
 
     // Roll, flip, weather, cats, color, uptime, topic, pin, kick, ban
-    // Slots, members, urban, choose
+    // Slots, members, urban, choose, google
     // Should order these alphabetically or ones without format first then the ones with format
     private String getListOfCommands() {
         StringBuilder sb = new StringBuilder();
@@ -927,6 +938,7 @@ public class EventListenerAdapter extends ListenerAdapter {
         sb.append(".urban - Gets a random definition and example for a given word!").append(newLine);
         sb.append(".kick - Kicks an user from the server!").append(newLine).append("\tFormat - .kick [@mention] or [user id])").append(newLine);
         sb.append(".ban - Bans an user from the server!").append(newLine).append("\tFormat - .ban [@mention] or [user id])").append(newLine);
+        sb.append(".google - Makes a google search for you!").append(newLine);
         sb.append("```");
         
         return sb.toString();
