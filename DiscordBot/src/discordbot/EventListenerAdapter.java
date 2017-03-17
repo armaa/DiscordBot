@@ -18,7 +18,9 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
@@ -49,6 +51,7 @@ import org.jpaste.exceptions.PasteException;
 import org.jpaste.pastebin.PasteExpireDate;
 import org.jpaste.pastebin.PastebinPaste;
 import org.json.*;
+import toxic.ToxicRating;
 
 /**
  *
@@ -60,10 +63,12 @@ public class EventListenerAdapter extends ListenerAdapter {
     private String serverId;
     private String serverName;
     private DateTime uptime;
+    private ToxicRating toxicRating = new ToxicRating();
     private final static String[] SLOTS_ICONS = { ":cherries:", ":lemon:", ":grapes:", ":seven:", ":tangerine:", ":watermelon:", ":banana:", ":pear:", ":strawberry:" };
     private final static String[] SLOTS_MESSAGE = { "rolled the slots!", "is trying their luck!", "pulled the handle!" };
     private final static String PASTEBIN_API_KEY = "b30d5c6673c98fb0c581dd99de644e44";
     private final static String ADMIN_ID = "97361468952936448";
+    private final static String BOT_ID = "258902871720984577";
 
     EventListenerAdapter(DateTime uptime) {
         this.uptime = uptime;
@@ -88,6 +93,10 @@ public class EventListenerAdapter extends ListenerAdapter {
         if (messageIsBanned(msg, channel))  {
             message.deleteMessage().queue();
             return;
+        }
+        
+        if (!member.getUser().getId().equals(BOT_ID)) {
+            writeToxicRatingForUser(user, toxicRating.getToxicRating(msg));
         }
         
         if(msg.toLowerCase().contains("buck") || msg.contains("$")) {
@@ -506,6 +515,7 @@ public class EventListenerAdapter extends ListenerAdapter {
             }
         }
         
+        // Makes a google search for you with with LMGTFY just for fun
         else if (msg.startsWith(".google")) {
             try {
                 String query = msg.substring(8).trim();
@@ -514,6 +524,47 @@ public class EventListenerAdapter extends ListenerAdapter {
                 channel.sendMessage(link).queue();
             } catch (Exception e) {
                 channel.sendMessage("Please provide a word to google for you.").queue();
+            }
+        }
+        
+        // Shows the current toxic ratings for each member
+        else if (msg.startsWith(".toxic")) {
+            try {
+                BufferedReader file = new BufferedReader(new FileReader("files/toxic.txt"));
+                String line;
+                Map<String, Double> userToxic = new LinkedHashMap<>();
+                StringBuilder sb = new StringBuilder();
+                sb.append("```ruby");
+                sb.append(System.lineSeparator());
+                
+                while ((line = file.readLine()) != null) {
+                    String toxicUser = line.split("\\|")[0];
+                    Double toxicRating = Double.parseDouble(line.split("\\|")[1]);
+                    userToxic.put(toxicUser, toxicRating);
+                }
+                
+                userToxic = userToxic.entrySet()
+                        .stream()
+                        .sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
+                        .collect(Collectors.toMap(
+                          Map.Entry::getKey, 
+                          Map.Entry::getValue, 
+                          (e1, e2) -> e1, 
+                          LinkedHashMap::new
+                        ));
+                
+                for (Map.Entry<String, Double> entry : userToxic.entrySet()) {
+                    String key = entry.getKey();
+                    Double value = entry.getValue();
+                    String str = String.format("%s: %.2f ", key, value);
+                    sb.append(str);
+                }
+                
+                sb.append("```");
+                
+                channel.sendMessage(sb.toString()).queue();
+            } catch (Exception e) {
+                
             }
         }
         
@@ -681,10 +732,10 @@ public class EventListenerAdapter extends ListenerAdapter {
 
             while ((line = file.readLine()) != null) {
                 if (line.contains(serverId)) {
-                    input = input + serverId + " " + String.format("%d|%d|%d", r, g, b) + System.lineSeparator();
+                    input = String.format("%s%s %d|%d|%d%s", input, serverId, r, g, b, System.lineSeparator());
                 }
                 else {
-                    input = input + line + System.lineSeparator();
+                    input = String.format("%s%s%s", input, line, System.lineSeparator());
                 }
             }
 
@@ -968,5 +1019,42 @@ public class EventListenerAdapter extends ListenerAdapter {
         eb.setFooter(String.format("Requested by %s#%s", member.getUser().getName(), member.getUser().getDiscriminator()), member.getUser().getAvatarUrl());
         
         return eb.build();
+    }
+
+    private void writeToxicRatingForUser(User user, double rating) {
+        try {
+            BufferedReader file = new BufferedReader(new FileReader("files/toxic.txt"));
+            String line;
+            String newLine = System.lineSeparator();
+            String input = "";
+            boolean newInput = true;
+
+            while ((line = file.readLine()) != null) {
+                if (line.contains(user.getName())) {
+                    double totalToxicRating = Double.parseDouble(line.split("\\|")[1]) + rating;
+                    input = String.format("%s%s|%s%s", input, user.getName(), totalToxicRating, newLine);
+                    newInput = false;
+                }
+                else {
+                    input = String.format("%s%s%s", input, line, newLine);
+                }
+            }
+            
+            file.close();
+            
+            if(newInput) {
+                FileWriter fw = new FileWriter("files/toxic.txt", true);
+                BufferedWriter bw = new BufferedWriter(fw);
+                bw.write(String.format("%s|%s%s", user.getName(), rating, newLine));
+                bw.close();
+                fw.close();
+            } else {
+                FileOutputStream fileOut = new FileOutputStream("files/toxic.txt");
+                fileOut.write(input.getBytes());
+                fileOut.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Problem reading file.");
+        }
     }
 }
